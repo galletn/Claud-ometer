@@ -2,6 +2,8 @@
 
 A local-first analytics dashboard for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Reads directly from `~/.claude/` to give you full visibility into your usage, costs, sessions, and projects — no cloud, no telemetry, just your data.
 
+> **Fork of the original** [deshraj/Claud-ometer](https://github.com/deshraj/Claud-ometer). This copy adds fixes for missing subagent sessions and corrected model pricing — see [What's changed](#whats-changed-vs-the-original).
+
 ![Overview Dashboard](./screenshots/overview.png)
 
 ## Features
@@ -41,13 +43,31 @@ A local-first analytics dashboard for [Claude Code](https://docs.anthropic.com/e
 ## Quick Start
 
 ```bash
-git clone https://github.com/deshraj/Claud-ometer.git
+git clone https://github.com/galletn/Claud-ometer.git
 cd Claud-ometer
 npm install
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000). The dashboard reads from your local `~/.claude/` directory automatically.
+
+## What's changed vs the original
+
+This fork keeps 100% of the upstream functionality and only fixes correctness issues found while using it in production. Nothing was removed.
+
+**1. Subagent sessions are no longer dropped** (`src/lib/claude-data/reader.ts`)
+The original only listed the top-level `.jsonl` files in each project directory. Claude Code nests **subagent** session transcripts one level deeper (in a folder named after the parent session's UUID), so all of them were silently excluded from stats, the session list, project counts, and search. Verified on one install this hid **~1.58B cache-read tokens and ~12k messages**. A recursive scan (`listJsonlFilesRecursive`) now walks into those nested folders.
+
+**2. Current-generation models were missing from pricing** (`src/config/pricing.ts`)
+Live usage of `claude-opus-5`, `claude-sonnet-5`, and `claude-fable-5-1` fell through to a stale historical entry by family substring, producing silently wrong ("bogus") cost estimates. These current-gen models are now priced explicitly, and `findClosestPricing()` checks them first so a new dated snapshot of the same family matches today's rate instead of an old one. `claude-opus-4-6` was also corrected (it carried Sonnet-era rates).
+
+**3. Fable models got a real identity** (`src/config/pricing.ts`)
+`fable`/`mythos` model IDs now map to a distinct "Fable" display name and color, instead of being swallowed into another family.
+
+**4. Pricing Reference table is accurate** (`src/app/costs/page.tsx`, `src/config/pricing.ts`)
+The table rendered the first three entries of the pricing dict by chance, which produced a duplicate "Opus, Opus, Sonnet" row and skipped Fable/Haiku. It now uses an explicit `CURRENT_MODEL_IDS` list, so it always shows the current models in order while the superseded dated snapshots stay available for historical cost accuracy.
+
+**5. Next.js bumped** (`package.json`) — `16.1.6` → `^16.2.4`.
 
 ## Tech Stack
 
