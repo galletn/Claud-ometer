@@ -1,5 +1,5 @@
 import useSWR from 'swr';
-import type { DashboardStats, ProjectInfo, SessionInfo, SessionDetail } from '@/lib/claude-data/types';
+import type { DashboardStats, DesktopInfo, ProjectInfo, SessionInfo, SessionDetail } from '@/lib/claude-data/types';
 
 const fetcher = (url: string) => fetch(url).then(r => {
   if (!r.ok) throw new Error(`API error: ${r.status}`);
@@ -27,4 +27,8 @@ export function useProjectSessions(projectId: string) {
 
 export function useSessionDetail(sessionId: string) {
   return useSWR<SessionDetail>(`/api/sessions/${sessionId}`, fetcher);
+}
+
+export function useDesktop() {
+  return useSWR<DesktopInfo>('/api/desktop', fetcher);
 }

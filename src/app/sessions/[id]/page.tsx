@@ -3,10 +3,13 @@
 import { use } from 'react';
 import { useSessionDetail } from '@/lib/hooks';
 import { useCostMode } from '@/lib/cost-mode-context';
+import { CostModeSelector } from '@/components/cost-mode-selector';
 import { formatCost, formatDuration, formatTokens } from '@/lib/format';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { SourceBadge } from '@/components/source-badge';
+import { SESSION_SOURCE_LABELS } from '@/lib/claude-data/types';
 import {
   ArrowLeft, Clock, GitBranch, MessageSquare, Wrench,
   User, Bot, Coins, Activity, Minimize2
@@ -56,7 +59,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         </Link>
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight">{session.projectName}</h1>
+            <h1 className="text-xl font-bold tracking-tight">{session.title || session.projectName}</h1>
+            <SourceBadge source={session.source} className="text-xs" />
             {models.map(m => (
               <Badge key={m} variant="secondary" className="text-xs">
                 {m}
@@ -73,6 +77,9 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             )}
             <span>{format(new Date(session.timestamp), 'MMM d, yyyy h:mm a')}</span>
           </div>
+        </div>
+        <div className="ml-auto">
+          <CostModeSelector />
         </div>
       </div>
 
@@ -278,9 +285,15 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             </CardHeader>
             <CardContent className="pt-0 space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Version</span>
-                <span className="font-mono">{session.version}</span>
+                <span className="text-muted-foreground">Client</span>
+                <span className="font-medium">{SESSION_SOURCE_LABELS[session.source] || 'Claude Code'}</span>
               </div>
+              {session.version && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Version</span>
+                  <span className="font-mono">{session.version}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">Project</span>
                 <span className="font-medium truncate max-w-[120px]">{session.projectName}</span>

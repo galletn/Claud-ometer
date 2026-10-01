@@ -15,7 +15,9 @@ interface CostModeContextValue {
 
 const CostModeContext = createContext<CostModeContextValue | null>(null);
 
-const STORAGE_KEY = 'claud-ometer-cost-mode';
+// v2: the default moved from 'subscription' to 'api'. A new key makes every
+// browser start on API once, instead of keeping a legacy mode saved earlier.
+const STORAGE_KEY = 'claud-ometer-cost-mode-v2';
 
 function getInitialMode(): CostMode {
   if (typeof window === 'undefined') return DEFAULT_COST_MODE;

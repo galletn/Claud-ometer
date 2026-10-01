@@ -8,6 +8,7 @@ import { UsageOverTime } from '@/components/charts/usage-over-time';
 import { ModelBreakdown } from '@/components/charts/model-breakdown';
 import { ActivityHeatmap } from '@/components/charts/activity-heatmap';
 import { PeakHours } from '@/components/charts/peak-hours';
+import { MonthlySpend } from '@/components/charts/monthly-spend';
 import { formatTokens, formatCost, formatDuration, timeAgo } from '@/lib/format';
 import {
   MessageSquare,
@@ -19,7 +20,10 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { SourceBadge } from '@/components/source-badge';
 import Link from 'next/link';
+import { format, parseISO } from 'date-fns';
+import { SESSION_SOURCES, SESSION_SOURCE_LABELS } from '@/lib/claude-data/types';
 
 export default function DashboardPage() {
   const { data: stats, isLoading } = useStats();
@@ -36,12 +40,22 @@ export default function DashboardPage() {
     );
   }
 
+  // Tokens/cost from stats-cache.json whose transcripts are gone, so the
+  // headline can exceed the Projects page; say so instead of looking wrong.
+  const historyNote = stats.history?.tokens > 0 && stats.history.through
+    ? `from history before ${format(parseISO(stats.history.through), 'MMM d')}`
+    : '';
+
+  // Only worth a row once something other than the CLI/IDE has been used.
+  const sources = stats.sources;
+  const showSources = !!sources && (sources['claude-desktop'].sessions > 0 || sources.cowork.sessions > 0);
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight">Overview</h1>
-          <p className="text-sm text-muted-foreground">Your Claude Code usage at a glance</p>
+          <p className="text-sm text-muted-foreground">Your Claude Code, Desktop and Cowork usage at a glance</p>
         </div>
         <CostModeSelector />
       </div>
@@ -62,15 +76,49 @@ export default function DashboardPage() {
         <StatCard
           title="Total Tokens"
           value={formatTokens(stats.totalTokens)}
+          subtitle={historyNote ? `${formatTokens(stats.history.tokens)} ${historyNote}` : undefined}
           icon={Activity}
         />
         <StatCard
           title="Estimated Usage"
           value={formatCost(pickCost(stats.estimatedCosts, stats.estimatedCost))}
-          subtitle={modeLabel.name.toLowerCase() + ' estimate'}
+          subtitle={historyNote
+            ? `${formatCost(pickCost(stats.history.estimatedCosts))} ${historyNote}`
+            : modeLabel.name.toLowerCase() + ' estimate'}
           icon={Coins}
         />
       </div>
+
+      {showSources && (
+        <Card className="border-border/50 shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold">Usage by Client</CardTitle>
+              <Link href="/desktop" className="text-xs font-medium text-primary hover:underline">
+                Claude Desktop
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-3 gap-3">
+              {SESSION_SOURCES.map(source => {
+                const s = sources[source];
+                return (
+                  <div key={source} className="rounded-lg border border-border/50 px-4 py-3">
+                    <p className="text-xs text-muted-foreground">{SESSION_SOURCE_LABELS[source]}</p>
+                    <p className="text-lg font-bold">{formatCost(pickCost(s.estimatedCosts, s.estimatedCost))}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {s.sessions.toLocaleString()} sessions · {formatTokens(s.tokens)} tokens
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <MonthlySpend data={stats.dailyModelTokens || []} />
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-3 gap-4">
@@ -112,7 +160,8 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-4">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{session.projectName}</span>
+                      <span className="text-sm font-medium">{session.title || session.projectName}</span>
+                      <SourceBadge source={session.source} />
                       {[...new Set(session.models)].map(m => (
                         <Badge key={m} variant="secondary" className="text-[10px] px-1.5 py-0">
                           {m}

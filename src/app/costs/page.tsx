@@ -6,7 +6,7 @@ import { CostModeSelector } from '@/components/cost-mode-selector';
 import { StatCard } from '@/components/cards/stat-card';
 import { CostChart } from '@/components/charts/cost-chart';
 import { formatCost, formatTokens } from '@/lib/format';
-import { getModelDisplayName, getModelColor, MODEL_PRICING, CURRENT_MODEL_IDS } from '@/config/pricing';
+import { getModelDisplayName, getModelColor, getModelPricing, getModelVersionLabel, MODEL_PRICING, CURRENT_MODEL_IDS } from '@/config/pricing';
 import { Coins, TrendingUp, Zap, Database, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -46,7 +46,7 @@ export default function CostsPage() {
   // Estimated savings: if cache reads were full-price input tokens instead
   let cacheSavings = 0;
   Object.entries(stats.modelUsage).forEach(([model, usage]) => {
-    const pricing = MODEL_PRICING[model];
+    const pricing = getModelPricing(model);
     if (pricing) {
       const fullPriceCost = (usage.cacheReadInputTokens / 1_000_000) * pricing.inputPerMillion;
       const cachePriceCost = (usage.cacheReadInputTokens / 1_000_000) * pricing.cacheReadPerMillion;
@@ -98,9 +98,9 @@ export default function CostsPage() {
         <div className="text-xs text-muted-foreground">
           <span className="font-medium text-foreground">{modeLabel.name}:</span>{' '}
           {modeLabel.description}.{' '}
-          {costMode === 'api' && 'This shows what your usage would cost at published API rates — typically 5-8x higher than subscription billing.'}
-          {costMode === 'conservative' && 'Cache tokens are discounted but not eliminated. This is an upper-bound estimate for subscription users.'}
-          {costMode === 'subscription' && 'Cache tokens are heavily discounted to approximate real Claude Code plan billing. Best match for $100/mo + overage plans.'}
+          {costMode === 'api' && 'Every token type at published API rates. This is the default and the only mode that is not a guess at plan billing.'}
+          {costMode === 'conservative' && 'Legacy mode: cache tokens discounted but not eliminated, as an upper-bound guess at subscription billing.'}
+          {costMode === 'subscription' && 'Legacy mode: cache tokens heavily discounted to approximate Claude Code plan billing.'}
         </div>
       </div>
 
@@ -244,7 +244,8 @@ export default function CostsPage() {
                   <th className="text-left py-2 font-medium text-muted-foreground">Model</th>
                   <th className="text-right py-2 font-medium text-muted-foreground">Input</th>
                   <th className="text-right py-2 font-medium text-muted-foreground">Output</th>
-                  <th className="text-right py-2 font-medium text-muted-foreground">Cache Write</th>
+                  <th className="text-right py-2 font-medium text-muted-foreground">Cache Write 5m</th>
+                  <th className="text-right py-2 font-medium text-muted-foreground">Cache Write 1h</th>
                   <th className="text-right py-2 font-medium text-muted-foreground">Cache Read</th>
                 </tr>
               </thead>
@@ -253,10 +254,11 @@ export default function CostsPage() {
                   const pricing = MODEL_PRICING[model];
                   return (
                   <tr key={model} className="border-b border-border/30">
-                    <td className="py-2 font-medium">{getModelDisplayName(model)}</td>
+                    <td className="py-2 font-medium">{getModelVersionLabel(model)}</td>
                     <td className="py-2 text-right">${pricing.inputPerMillion}</td>
                     <td className="py-2 text-right">${pricing.outputPerMillion}</td>
                     <td className="py-2 text-right">${pricing.cacheWritePerMillion}</td>
+                    <td className="py-2 text-right">${pricing.cacheWrite1hPerMillion}</td>
                     <td className="py-2 text-right">${pricing.cacheReadPerMillion}</td>
                   </tr>
                   );
@@ -265,7 +267,7 @@ export default function CostsPage() {
             </table>
           </div>
           <p className="mt-2 text-[10px] text-muted-foreground">
-            These are published API rates. Claude Code subscription billing differs significantly — cache tokens are not billed at full API rates.
+            Published first-party API rates (platform.claude.com pricing, checked Oct 1, 2026). API Equivalent cost uses these; 1-hour cache writes are priced separately from 5-minute ones.
           </p>
         </CardContent>
       </Card>

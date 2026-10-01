@@ -4,9 +4,11 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useSessions } from '@/lib/hooks';
 import { useCostMode } from '@/lib/cost-mode-context';
+import { CostModeSelector } from '@/components/cost-mode-selector';
 import { formatCost, formatDuration, timeAgo, formatTokens } from '@/lib/format';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { SourceBadge } from '@/components/source-badge';
 import { Clock, GitBranch, MessageSquare, FolderKanban, Minimize2, Search, X } from 'lucide-react';
 import Link from 'next/link';
 
@@ -75,6 +77,7 @@ function SessionsContent() {
             {debouncedQuery && ` matching "${debouncedQuery}"`}
           </p>
         </div>
+        <CostModeSelector />
       </div>
 
       <div className="relative">
@@ -112,10 +115,11 @@ function SessionsContent() {
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="flex items-center gap-1.5 text-sm font-medium">
-                      <FolderKanban className="h-3.5 w-3.5 text-muted-foreground" />
-                      {session.projectName}
+                    <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+                      <FolderKanban className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                      <span className="truncate">{session.title || session.projectName}</span>
                     </span>
+                    <SourceBadge source={session.source} />
                     {[...new Set(session.models)].map(m => (
                       <Badge key={m} variant="secondary" className="text-[10px] px-1.5 py-0">
                         {m}

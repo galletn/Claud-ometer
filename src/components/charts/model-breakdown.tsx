@@ -19,17 +19,23 @@ function formatTokens(n: number): string {
 
 export function ModelBreakdown({ data }: ModelBreakdownProps) {
   const { pickCost } = useCostMode();
-  const chartData = Object.entries(data).map(([model, usage]) => ({
-    name: getModelDisplayName(model),
-    model,
-    tokens: usage.inputTokens + usage.outputTokens + usage.cacheReadInputTokens + usage.cacheCreationInputTokens,
-    cost: pickCost(usage.estimatedCosts, usage.estimatedCost),
-    color: getModelColor(model),
-    inputTokens: usage.inputTokens,
-    outputTokens: usage.outputTokens,
-    cacheRead: usage.cacheReadInputTokens,
-    cacheWrite: usage.cacheCreationInputTokens,
-  }));
+  // One slice per family (Opus, Sonnet, ...), matching the cost chart: several
+  // dated/versioned IDs per family otherwise produced repeated same-colour rows.
+  const byFamily = new Map<string, { name: string; model: string; tokens: number; cost: number; color: string; inputTokens: number; outputTokens: number; cacheRead: number; cacheWrite: number }>();
+  for (const [model, usage] of Object.entries(data)) {
+    const tokens = usage.inputTokens + usage.outputTokens + usage.cacheReadInputTokens + usage.cacheCreationInputTokens;
+    if (tokens === 0) continue; // e.g. Claude Code's zero-usage `<synthetic>` messages
+    const name = getModelDisplayName(model);
+    const row = byFamily.get(name) || { name, model, tokens: 0, cost: 0, color: getModelColor(model), inputTokens: 0, outputTokens: 0, cacheRead: 0, cacheWrite: 0 };
+    row.tokens += tokens;
+    row.cost += pickCost(usage.estimatedCosts, usage.estimatedCost);
+    row.inputTokens += usage.inputTokens;
+    row.outputTokens += usage.outputTokens;
+    row.cacheRead += usage.cacheReadInputTokens;
+    row.cacheWrite += usage.cacheCreationInputTokens;
+    byFamily.set(name, row);
+  }
+  const chartData = Array.from(byFamily.values()).sort((a, b) => b.tokens - a.tokens);
 
   const totalTokens = chartData.reduce((sum, d) => sum + d.tokens, 0);
 

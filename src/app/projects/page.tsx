@@ -2,10 +2,12 @@
 
 import { useProjects } from '@/lib/hooks';
 import { useCostMode } from '@/lib/cost-mode-context';
+import { CostModeSelector } from '@/components/cost-mode-selector';
 import { formatTokens, formatCost, timeAgo } from '@/lib/format';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { FolderKanban, MessageSquare, Clock, Layers } from 'lucide-react';
+import { Briefcase, FolderKanban, MessageSquare, Clock, Layers } from 'lucide-react';
+import { COWORK_PROJECT_ID } from '@/lib/claude-data/types';
 import Link from 'next/link';
 
 export default function ProjectsPage() {
@@ -25,13 +27,18 @@ export default function ProjectsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight">Projects</h1>
-        <p className="text-sm text-muted-foreground">{projects.length} projects tracked</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">Projects</h1>
+          <p className="text-sm text-muted-foreground">{projects.length} projects tracked</p>
+        </div>
+        <CostModeSelector />
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {projects.map(project => (
+        {projects.map(project => {
+          const ProjectIcon = project.id === COWORK_PROJECT_ID ? Briefcase : FolderKanban;
+          return (
           <Link key={project.id} href={`/projects/${encodeURIComponent(project.id)}`}>
             <Card className="border-border/50 shadow-sm transition-all hover:shadow-md hover:border-primary/30 cursor-pointer h-full">
               <CardContent className="p-5">
@@ -39,7 +46,7 @@ export default function ProjectsPage() {
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2">
                       <div className="rounded-lg bg-primary/10 p-2">
-                        <FolderKanban className="h-4 w-4 text-primary" />
+                        <ProjectIcon className="h-4 w-4 text-primary" />
                       </div>
                       <div>
                         <h3 className="text-sm font-semibold">{project.name}</h3>
@@ -89,7 +96,8 @@ export default function ProjectsPage() {
               </CardContent>
             </Card>
           </Link>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

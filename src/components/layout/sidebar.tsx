@@ -10,6 +10,7 @@ import {
   DollarSign,
   Terminal,
   Database,
+  Monitor,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +19,7 @@ const navItems = [
   { href: '/', label: 'Overview', icon: LayoutDashboard },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/sessions', label: 'Sessions', icon: MessageSquare },
+  { href: '/desktop', label: 'Desktop', icon: Monitor },
   { href: '/costs', label: 'Costs', icon: DollarSign },
   { href: '/data', label: 'Data', icon: Database },
 ];

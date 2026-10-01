@@ -3,6 +3,49 @@ import type { CostMode } from '@/config/pricing';
 /** Cost estimates in all three modes */
 export type CostEstimates = Record<CostMode, number>;
 
+/** Which Claude client wrote a session.
+ * - `claude-code`: Claude Code CLI, IDE extension or SDK (`~/.claude/projects`)
+ * - `claude-desktop`: Claude Code started from the Claude Desktop app's Code tab
+ *   (same `~/.claude/projects` tree, told apart by the `entrypoint` field)
+ * - `cowork`: Claude Desktop's local agent mode, read from the Desktop app data dir */
+export type SessionSource = 'claude-code' | 'claude-desktop' | 'cowork';
+
+/** Virtual project id grouping every Cowork session (they have no project dir). */
+export const COWORK_PROJECT_ID = 'claude-desktop-cowork';
+
+export const SESSION_SOURCES: SessionSource[] = ['claude-code', 'claude-desktop', 'cowork'];
+
+export const SESSION_SOURCE_LABELS: Record<SessionSource, string> = {
+  'claude-code': 'Claude Code',
+  'claude-desktop': 'Desktop Code',
+  cowork: 'Cowork',
+};
+
+export interface SourceSummary {
+  sessions: number;
+  tokens: number;
+  estimatedCost: number;
+  estimatedCosts: CostEstimates;
+}
+
+/** Tokens per day for the two Claude Desktop clients. */
+export interface DesktopDailyTokens {
+  date: string;
+  cowork: number;
+  desktopCode: number;
+}
+
+export interface DesktopInfo {
+  /** False when the data source is an imported ZIP or Claude Desktop isn't installed. */
+  available: boolean;
+  dataDir: string;
+  dailyTokens: DesktopDailyTokens[];
+  mcpServers: string[];
+  extensions: string[];
+  cowork: SessionInfo[];
+  desktopCode: SessionInfo[];
+}
+
 export interface DailyActivity {
   date: string;
   messageCount: number;
@@ -78,11 +121,15 @@ export interface SessionMessage {
   cwd: string;
   version: string;
   gitBranch: string;
+  /** Client that started the session, e.g. `cli`, `claude-vscode`, `sdk-cli`. */
+  entrypoint?: string;
   compactMetadata?: CompactMetadata;
   microcompactMetadata?: MicrocompactMetadata;
   isCompactSummary?: boolean;
   message?: {
     role: string;
+    /** API message id. One assistant turn is split over several lines sharing this id. */
+    id?: string;
     model?: string;
     content: unknown;
     usage?: TokenUsage;
@@ -133,6 +180,12 @@ export interface SessionInfo {
   id: string;
   projectId: string;
   projectName: string;
+  /** Which Claude client this session came from. */
+  source: SessionSource;
+  /** Raw `entrypoint` from the transcript ('' for Cowork). */
+  entrypoint: string;
+  /** Session title. Set for Cowork (from Claude Desktop's metadata), '' otherwise. */
+  title: string;
   timestamp: string;
   duration: number;
   messageCount: number;
@@ -173,6 +226,8 @@ export interface DashboardStats {
   totalTokens: number;
   estimatedCost: number;
   estimatedCosts: CostEstimates;
+  /** The part of the totals that comes only from stats-cache.json (through = its lastComputedDate). */
+  history: { through: string; tokens: number; estimatedCosts: CostEstimates };
   dailyActivity: DailyActivity[];
   dailyModelTokens: DailyModelTokens[];
   modelUsage: Record<string, ModelUsage & { estimatedCost: number; estimatedCosts: CostEstimates }>;
@@ -181,4 +236,5 @@ export interface DashboardStats {
   longestSession: LongestSession;
   projectCount: number;
   recentSessions: SessionInfo[];
+  sources: Record<SessionSource, SourceSummary>;
 }

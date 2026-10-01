@@ -3,6 +3,7 @@
 import { use } from 'react';
 import { useProjectSessions } from '@/lib/hooks';
 import { useCostMode } from '@/lib/cost-mode-context';
+import { CostModeSelector } from '@/components/cost-mode-selector';
 import { formatTokens, formatCost, formatDuration, timeAgo } from '@/lib/format';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,8 +16,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const { data: sessions, isLoading } = useProjectSessions(projectId);
   const { pickCost } = useCostMode();
 
-  const projectName = projectId.split('-').pop() || projectId;
-
   if (isLoading || !sessions) {
     return (
       <div className="flex h-[80vh] items-center justify-center">
@@ -28,6 +27,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     );
   }
 
+  // The reader resolves the real name from the session cwd; the id is only a lossy fallback.
+  const projectName = sessions[0]?.projectName || projectId.split('-').pop() || projectId;
   const totalMessages = sessions.reduce((sum, s) => sum + s.messageCount, 0);
   const totalCost = sessions.reduce((sum, s) => sum + pickCost(s.estimatedCosts, s.estimatedCost), 0);
   const totalToolCalls = sessions.reduce((sum, s) => sum + s.toolCallCount, 0);
@@ -55,6 +56,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         <div>
           <h1 className="text-xl font-bold tracking-tight">{projectName}</h1>
           <p className="text-sm text-muted-foreground">{sessions.length} sessions</p>
+        </div>
+        <div className="ml-auto">
+          <CostModeSelector />
         </div>
       </div>
 
@@ -121,6 +125,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               >
                 <div>
                   <div className="flex items-center gap-2">
+                    {session.title && <span className="text-sm font-medium">{session.title}</span>}
                     {[...new Set(session.models)].map(m => (
                       <Badge key={m} variant="secondary" className="text-[10px] px-1.5 py-0">
                         {m}
