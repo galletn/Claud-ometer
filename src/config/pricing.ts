@@ -6,12 +6,30 @@ export interface ModelPricing {
 }
 
 export const MODEL_PRICING: Record<string, ModelPricing> = {
-  'claude-opus-4-6': { inputPerMillion: 15, outputPerMillion: 75, cacheWritePerMillion: 18.75, cacheReadPerMillion: 1.50 },
+  // Current generation (fixed 2026-09-24: opus-5/sonnet-5/fable-5-1 were entirely
+  // missing, so live usage silently fell back to whatever stale entry below matched
+  // first by family substring — that's what was producing "bogus" rates)
+  'claude-opus-5': { inputPerMillion: 5, outputPerMillion: 25, cacheWritePerMillion: 6.25, cacheReadPerMillion: 0.50 },
+  'claude-sonnet-5': { inputPerMillion: 2, outputPerMillion: 10, cacheWritePerMillion: 2.50, cacheReadPerMillion: 0.20 },
+  'claude-haiku-4-5-20251001': { inputPerMillion: 1, outputPerMillion: 5, cacheWritePerMillion: 1.25, cacheReadPerMillion: 0.10 },
+  // Fable 5.1 cache reads are 0.025x input (not the usual 0.1x) — confirmed rate,
+  // not the standard formula, so don't "simplify" this back to input * 0.1
+  'claude-fable-5-1': { inputPerMillion: 10, outputPerMillion: 50, cacheWritePerMillion: 12.50, cacheReadPerMillion: 0.25 },
+
+  // Older / dated snapshots — kept only so historical sessions logged under these
+  // exact IDs still get an exact-match price instead of falling through to
+  // findClosestPricing(). Not shown in the Pricing Reference table (see costs/page.tsx).
+  'claude-opus-4-6': { inputPerMillion: 5, outputPerMillion: 25, cacheWritePerMillion: 6.25, cacheReadPerMillion: 0.50 },
   'claude-opus-4-5-20251101': { inputPerMillion: 15, outputPerMillion: 75, cacheWritePerMillion: 18.75, cacheReadPerMillion: 1.50 },
   'claude-sonnet-4-6': { inputPerMillion: 3, outputPerMillion: 15, cacheWritePerMillion: 3.75, cacheReadPerMillion: 0.30 },
   'claude-sonnet-4-5-20250929': { inputPerMillion: 3, outputPerMillion: 15, cacheWritePerMillion: 3.75, cacheReadPerMillion: 0.30 },
-  'claude-haiku-4-5-20251001': { inputPerMillion: 0.80, outputPerMillion: 4, cacheWritePerMillion: 1.00, cacheReadPerMillion: 0.08 },
 };
+
+/** Models shown in the Pricing Reference table, in display order. Explicit list
+ * instead of slicing MODEL_PRICING — that dict also carries superseded dated
+ * snapshots kept only for historical cost-calc accuracy (see above), and slicing
+ * blindly is what caused the old "Opus, Opus, Sonnet" duplicate-row bug. */
+export const CURRENT_MODEL_IDS = ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5-20251001', 'claude-fable-5-1'];
 
 /**
  * Cost estimation modes:
@@ -57,6 +75,7 @@ const COST_MODE_MULTIPLIERS: Record<CostMode, { cacheWrite: number; cacheRead: n
 export const DEFAULT_COST_MODE: CostMode = 'subscription';
 
 export function getModelDisplayName(modelId: string): string {
+  if (modelId.includes('fable') || modelId.includes('mythos')) return 'Fable';
   if (modelId.includes('opus')) return 'Opus';
   if (modelId.includes('sonnet')) return 'Sonnet';
   if (modelId.includes('haiku')) return 'Haiku';
@@ -64,6 +83,7 @@ export function getModelDisplayName(modelId: string): string {
 }
 
 export function getModelColor(modelId: string): string {
+  if (modelId.includes('fable') || modelId.includes('mythos')) return '#A65CD4';
   if (modelId.includes('opus')) return '#D4764E';
   if (modelId.includes('sonnet')) return '#6B8AE6';
   if (modelId.includes('haiku')) return '#5CB87A';
@@ -115,9 +135,15 @@ export function calculateCostAllModes(
 }
 
 function findClosestPricing(model: string): ModelPricing | null {
+  // check current-gen entries first so an unrecognized-but-current model ID
+  // (e.g. a new dated snapshot) matches today's rate, not a stale historical one
+  for (const key of CURRENT_MODEL_IDS) {
+    const family = key.includes('fable') ? 'fable' : key.includes('opus') ? 'opus' : key.includes('sonnet') ? 'sonnet' : 'haiku';
+    if (model.includes(family)) return MODEL_PRICING[key];
+  }
   for (const [key, pricing] of Object.entries(MODEL_PRICING)) {
-    const family = key.includes('opus') ? 'opus' : key.includes('sonnet') ? 'sonnet' : 'haiku';
+    const family = key.includes('fable') ? 'fable' : key.includes('opus') ? 'opus' : key.includes('sonnet') ? 'sonnet' : 'haiku';
     if (model.includes(family)) return pricing;
   }
-  return MODEL_PRICING['claude-sonnet-4-5-20250929'];
+  return MODEL_PRICING['claude-sonnet-5'];
 }

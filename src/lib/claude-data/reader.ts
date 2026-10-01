@@ -54,6 +54,31 @@ function getProjectsDir(): string {
   return path.join(getClaudeDir(), 'projects');
 }
 
+/** Recursively collect every .jsonl session file under a project directory.
+ * Claude Code nests subagent-session transcripts one level deeper than the
+ * top-level session files (in a directory named after the parent session's
+ * UUID), so a shallow readdirSync silently drops every subagent session —
+ * verified 2026-09-24 as ~1.58B cache-read tokens and ~12k messages missing
+ * across this install alone. Returns full paths, not bare filenames. */
+function listJsonlFilesRecursive(dirPath: string): string[] {
+  const results: string[] = [];
+  for (const entry of fs.readdirSync(dirPath)) {
+    const full = path.join(dirPath, entry);
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(full);
+    } catch {
+      continue; // broken symlink or race with concurrent deletion
+    }
+    if (stat.isDirectory()) {
+      results.push(...listJsonlFilesRecursive(full));
+    } else if (entry.endsWith('.jsonl')) {
+      results.push(full);
+    }
+  }
+  return results;
+}
+
 export function getStatsCache(): StatsCache | null {
   const statsPath = path.join(getClaudeDir(), 'stats-cache.json');
   if (!fs.existsSync(statsPath)) return null;
@@ -98,9 +123,9 @@ function extractCwdFromSession(filePath: string): string | null {
 }
 
 function getProjectNameFromDir(projectPath: string, projectId: string): { name: string; fullPath: string } {
-  const jsonlFiles = fs.readdirSync(projectPath).filter(f => f.endsWith('.jsonl'));
+  const jsonlFiles = listJsonlFilesRecursive(projectPath);
   if (jsonlFiles.length > 0) {
-    const cwd = extractCwdFromSession(path.join(projectPath, jsonlFiles[0]));
+    const cwd = extractCwdFromSession(jsonlFiles[0]);
     if (cwd) return { name: path.basename(cwd), fullPath: cwd };
   }
   return { name: projectIdToName(projectId), fullPath: projectIdToFullPath(projectId) };
@@ -115,7 +140,7 @@ export async function getProjects(): Promise<ProjectInfo[]> {
     const projectPath = path.join(getProjectsDir(), entry);
     if (!fs.statSync(projectPath).isDirectory()) continue;
 
-    const jsonlFiles = fs.readdirSync(projectPath).filter(f => f.endsWith('.jsonl'));
+    const jsonlFiles = listJsonlFilesRecursive(projectPath);
     if (jsonlFiles.length === 0) continue;
 
     let totalMessages = 0;
@@ -124,8 +149,7 @@ export async function getProjects(): Promise<ProjectInfo[]> {
     let lastActive = '';
     const modelsSet = new Set<string>();
 
-    for (const file of jsonlFiles) {
-      const filePath = path.join(projectPath, file);
+    for (const filePath of jsonlFiles) {
       const stat = fs.statSync(filePath);
       const mtime = stat.mtime.toISOString();
       if (!lastActive || mtime > lastActive) lastActive = mtime;
@@ -154,8 +178,7 @@ export async function getProjects(): Promise<ProjectInfo[]> {
       });
     }
 
-    const firstSessionPath = path.join(projectPath, jsonlFiles[0]);
-    const cwd = extractCwdFromSession(firstSessionPath);
+    const cwd = extractCwdFromSession(jsonlFiles[0]);
 
     projects.push({
       id: entry,
@@ -179,10 +202,10 @@ export async function getProjectSessions(projectId: string): Promise<SessionInfo
   if (!fs.existsSync(projectPath)) return [];
 
   const { name: projectName } = getProjectNameFromDir(projectPath, projectId);
-  const jsonlFiles = fs.readdirSync(projectPath).filter(f => f.endsWith('.jsonl'));
+  const jsonlFiles = listJsonlFilesRecursive(projectPath);
   const sessions: SessionInfo[] = [];
-  for (const file of jsonlFiles) {
-    sessions.push(await parseSessionFile(path.join(projectPath, file), projectId, projectName));
+  for (const filePath of jsonlFiles) {
+    sessions.push(await parseSessionFile(filePath, projectId, projectName));
   }
   return sessions.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 }
@@ -198,9 +221,9 @@ export async function getSessions(limit = 50, offset = 0): Promise<SessionInfo[]
     if (!fs.statSync(projectPath).isDirectory()) continue;
 
     const { name: projectName } = getProjectNameFromDir(projectPath, entry);
-    const jsonlFiles = fs.readdirSync(projectPath).filter(f => f.endsWith('.jsonl'));
-    for (const file of jsonlFiles) {
-      allSessions.push(await parseSessionFile(path.join(projectPath, file), entry, projectName));
+    const jsonlFiles = listJsonlFilesRecursive(projectPath);
+    for (const filePath of jsonlFiles) {
+      allSessions.push(await parseSessionFile(filePath, entry, projectName));
     }
   }
 
@@ -337,8 +360,9 @@ export async function getSessionDetail(sessionId: string): Promise<SessionDetail
     const projectPath = path.join(getProjectsDir(), entry);
     if (!fs.statSync(projectPath).isDirectory()) continue;
 
-    const filePath = path.join(projectPath, `${sessionId}.jsonl`);
-    if (!fs.existsSync(filePath)) continue;
+    const filePath = listJsonlFilesRecursive(projectPath)
+      .find(f => path.basename(f, '.jsonl') === sessionId);
+    if (!filePath) continue;
 
     const { name: projectName } = getProjectNameFromDir(projectPath, entry);
     const sessionInfo = await parseSessionFile(filePath, entry, projectName);
@@ -423,10 +447,8 @@ export async function searchSessions(query: string, limit = 50): Promise<Session
     const projectPath = path.join(getProjectsDir(), entry);
     if (!fs.statSync(projectPath).isDirectory()) continue;
 
-    const jsonlFiles = fs.readdirSync(projectPath).filter(f => f.endsWith('.jsonl'));
-    for (const file of jsonlFiles) {
-      const filePath = path.join(projectPath, file);
-
+    const jsonlFiles = listJsonlFilesRecursive(projectPath);
+    for (const filePath of jsonlFiles) {
       let hasMatch = false;
       await forEachJsonlLine(filePath, (msg) => {
         if (hasMatch) return;
@@ -508,8 +530,7 @@ function getRecentSessionFiles(afterDate: string): string[] {
     const projectPath = path.join(projectsDir, entry);
     if (!fs.statSync(projectPath).isDirectory()) continue;
 
-    for (const f of fs.readdirSync(projectPath).filter(f => f.endsWith('.jsonl'))) {
-      const filePath = path.join(projectPath, f);
+    for (const filePath of listJsonlFilesRecursive(projectPath)) {
       if (fs.statSync(filePath).mtimeMs > cutoff) {
         files.push(filePath);
       }

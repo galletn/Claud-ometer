@@ -6,7 +6,7 @@ import { CostModeSelector } from '@/components/cost-mode-selector';
 import { StatCard } from '@/components/cards/stat-card';
 import { CostChart } from '@/components/charts/cost-chart';
 import { formatCost, formatTokens } from '@/lib/format';
-import { getModelDisplayName, getModelColor, MODEL_PRICING } from '@/config/pricing';
+import { getModelDisplayName, getModelColor, MODEL_PRICING, CURRENT_MODEL_IDS } from '@/config/pricing';
 import { Coins, TrendingUp, Zap, Database, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -249,7 +249,9 @@ export default function CostsPage() {
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(MODEL_PRICING).slice(0, 3).map(([model, pricing]) => (
+                {CURRENT_MODEL_IDS.map((model) => {
+                  const pricing = MODEL_PRICING[model];
+                  return (
                   <tr key={model} className="border-b border-border/30">
                     <td className="py-2 font-medium">{getModelDisplayName(model)}</td>
                     <td className="py-2 text-right">${pricing.inputPerMillion}</td>
@@ -257,7 +259,8 @@ export default function CostsPage() {
                     <td className="py-2 text-right">${pricing.cacheWritePerMillion}</td>
                     <td className="py-2 text-right">${pricing.cacheReadPerMillion}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
